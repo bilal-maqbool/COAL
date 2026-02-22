@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8086 HELLO WORLD – Node-RED Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --accent: #ff6b35;
+    --accent2: #00d4aa;
+    --accent3: #7c3aed;
+    --wire: #ff6b35;
+    --node-reg: #1a3a5c;
+    --node-mem: #1a4a2a;
+    --node-int: #3a1a4a;
+    --node-ctrl: #4a2a1a;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --glow: rgba(255,107,53,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nr-logo {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900;
+    font-size: 14px;
+    color: #000;
+    box-shadow: 0 0 16px rgba(255,107,53,0.6);
+  }
+
+  header h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(255,107,53,0.5);
+  }
+
+  header span {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .toolbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 32px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .tool-btn {
+    background: #21262d;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tool-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .canvas-wrap {
+    display: flex;
+    height: calc(100vh - 100px);
+  }
+
+  .sidebar {
+    width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+
+  .sidebar h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .palette-node {
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    cursor: grab;
+    border-left: 4px solid;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .palette-node.reg  { background: #1a3a5c; border-color: #4da6ff; }
+  .palette-node.mem  { background: #1a4a2a; border-color: #4dff91; }
+  .palette-node.int  { background: #3a1a4a; border-color: #bf7fff; }
+  .palette-node.ctrl { background: #4a2a1a; border-color: #ffa04d; }
+
+  .palette-node .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .canvas {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background-image:
+      radial-gradient(circle, #30363d 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  svg.wires {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .wire {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.7;
+    filter: drop-shadow(0 0 4px rgba(255,107,53,0.5));
+  }
+
+  .wire-data {
+    stroke: var(--accent2);
+    filter: drop-shadow(0 0 4px rgba(0,212,170,0.5));
+  }
+
+  .wire-int {
+    stroke: #bf7fff;
+    filter: drop-shadow(0 0 4px rgba(191,127,255,0.5));
+  }
+
+  /* animated dash */
+  .wire-anim {
+    stroke-dasharray: 8 6;
+    animation: dash 1s linear infinite;
+  }
+  @keyframes dash {
+    to { stroke-dashoffset: -28; }
+  }
+
+  /* arrow marker */
+
+  .flow-node {
+    position: absolute;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    user-select: none;
+  }
+
+  .flow-node:hover {
+    transform: scale(1.03);
+    z-index: 10;
+  }
+
+  .node-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    padding: 5px 10px 3px;
+    border-radius: 5px 5px 0 0;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .node-body {
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.6;
+    min-width: 160px;
+  }
+
+  .node-body .addr {
+    font-size: 9px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .node-body .val {
+    color: var(--accent2);
+    font-weight: bold;
+  }
+
+  /* Port dots */
+  .port-out, .port-in {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    position: absolute;
+    right: -6px;
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 8px rgba(255,107,53,0.6);
+  }
+
+  .port-in {
+    left: -6px; right: auto;
+    background: var(--accent2);
+    box-shadow: 0 0 8px rgba(0,212,170,0.6);
+  }
+
+  /* Node types */
+  .n-start  { background: #0f2a1a; }
+  .n-start .node-header  { background: #1a5a2a; color: #4dff91; }
+
+  .n-reg    { background: #0f1e2e; }
+  .n-reg .node-header    { background: #1a3a5c; color: #4da6ff; }
+
+  .n-mem    { background: #0f2a1a; }
+  .n-mem .node-header    { background: #1a4a2a; color: #4dff91; }
+
+  .n-int    { background: #1e0f2e; }
+  .n-int .node-header    { background: #3a1a4a; color: #bf7fff; }
+
+  .n-end    { background: #2e1a0f; }
+  .n-end .node-header    { background: #5a3a1a; color: #ffa04d; }
+
+  .n-group  { background: #1a1e1a; border: 1px dashed #30363d; border-radius: 8px; }
+  .n-group .node-header  { background: #21262d; color: var(--muted); }
+
+  /* Tooltip on hover */
+  .flow-node .tooltip {
+    display: none;
+    position: absolute;
+    left: 110%;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #21262d;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: nowrap;
+    z-index: 999;
+    border-radius: 4px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+
+  .flow-node:hover .tooltip { display: block; }
+
+  .info-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 6px 32px;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    gap: 24px;
+  }
+
+  .info-bar span { color: var(--accent2); }
+
+  .legend {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: rgba(22,27,34,0.9);
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 10px;
+  }
+
+  .legend h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+  }
+
+  .legend-line {
+    width: 24px; height: 2px;
+  }
+
+  .mem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  .mem-cell {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    padding: 3px 5px;
+    font-size: 9px;
+    text-align: center;
+  }
+
+  .mem-cell.char { color: var(--accent2); }
+  .mem-cell.attr { color: #ffa04d; }
+
+  /* Highlight animation */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50%       { box-shadow: 0 0 0 4px rgba(255,107,53,0.25); }
+  }
+
+  .flow-node.active-node {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nr-logo">NR</div>
+  <h1>NODE-RED FLOW EDITOR</h1>
+  <div style="margin-left:24px; font-size:11px; color: var(--accent2);">
+    ▶ 8086 HELLO WORLD — VGA Video Memory Write
+  </div>
+  <span>Flow: main.flow | 13 nodes | 12 wires</span>
+</header>
+
+<div class="toolbar">
+  <button class="tool-btn active">Deploy</button>
+  <button class="tool-btn">Import</button>
+  <button class="tool-btn">Export</button>
+  <div style="flex:1"></div>
+  <button class="tool-btn" id="animBtn" onclick="toggleAnim()">⏸ Pause Flow</button>
+  <button class="tool-btn" onclick="resetZoom()">⊙ Fit</button>
+</div>
+
+<div class="canvas-wrap">
+  <div class="sidebar">
+    <h3>Node Palette</h3>
+    <div class="palette-node reg"><div class="dot" style="background:#4da6ff"></div> Register Op</div>
+    <div class="palette-node mem"><div class="dot" style="background:#4dff91"></div> Mem Write</div>
+    <div class="palette-node int"><div class="dot" style="background:#bf7fff"></div> Interrupt</div>
+    <div class="palette-node ctrl"><div class="dot" style="background:#ffa04d"></div> Control</div>
+
+    <h3 style="margin-top:24px;">Info</h3>
+    <div style="font-size:10px; color:var(--muted); line-height:1.7;">
+      <div>Segment: <span style="color:var(--accent2)">B800h</span></div>
+      <div>Mode: <span style="color:var(--accent2)">VGA Text</span></div>
+      <div>Cols: <span style="color:var(--accent2)">80</span></div>
+      <div>Rows: <span style="color:var(--accent2)">25</span></div>
+      <div>Bytes/char: <span style="color:var(--accent2)">2</span></div>
+      <div>Color: <span style="color:var(--accent2)">07h</span></div>
+    </div>
+
+    <h3 style="margin-top:24px;">Memory Map</h3>
+    <div style="font-size:9px; color:var(--muted); line-height:1.7;">
+      <div style="color:var(--accent2)">Offset → Byte</div>
+      <div class="mem-grid" id="memGrid"></div>
+    </div>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <svg class="wires" id="wireSvg">
+      <defs>
+        <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="var(--accent)" opacity="0.8"/>
+        </marker>
+        <marker id="arrow-data" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="var(--accent2)" opacity="0.8"/>
+        </marker>
+        <marker id="arrow-int" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#bf7fff" opacity="0.8"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- ============ NODES ============ -->
+
+    <!-- 1. START -->
+    <div class="flow-node n-start" id="n0" style="left:60px;top:40px;width:160px;"
+         data-ox="220" data-oy="66" data-ix="" data-iy="">
+      <div class="node-header">■ START</div>
+      <div class="node-body">
+        <span class="addr">org 100h</span>
+        <span class="val">Program Entry</span><br>
+        <span style="font-size:9px;color:var(--muted)">DOS .COM format<br>Offset: 0100h</span>
+      </div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">ORG 100h sets the origin of the .COM program<br>to offset 0x0100 in the code segment.<br>DOS loads .COM files starting at CS:0100h.</div>
+    </div>
+
+    <!-- 2. MOV AX, 0B800h -->
+    <div class="flow-node n-reg" id="n1" style="left:280px;top:40px;width:190px;"
+         data-ox="470" data-oy="66">
+      <div class="node-header">⚙ Register Op</div>
+      <div class="node-body">
+        <span class="addr">Instruction → AX</span>
+        <code style="color:#ffa04d">MOV AX, 0B800h</code><br>
+        <span style="font-size:9px;color:var(--muted)">Load VGA segment addr<br>into Accumulator</span>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">AX = 0B800h<br>VGA text mode memory starts at physical<br>address 0xB8000 in real mode.</div>
+    </div>
+
+    <!-- 3. MOV DS, AX -->
+    <div class="flow-node n-reg" id="n2" style="left:530px;top:40px;width:190px;"
+         data-ox="720" data-oy="66">
+      <div class="node-header">⚙ Register Op</div>
+      <div class="node-body">
+        <span class="addr">Instruction → DS</span>
+        <code style="color:#ffa04d">MOV DS, AX</code><br>
+        <span style="font-size:9px;color:var(--muted)">Data Segment now points<br>to B800h (VGA memory)</span>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">DS = 0B800h<br>Now all [offset] memory references<br>resolve to VGA text buffer.</div>
+    </div>
+
+    <!-- 4. VGA MEM WRITE GROUP -->
+    <div class="flow-node n-group" id="nGroup" style="left:280px;top:140px;width:650px;height:340px;">
+      <div class="node-header" style="border-radius:7px 7px 0 0;">📺 VGA TEXT MEMORY WRITE — B800:0000h → B800:0015h</div>
+      <div style="padding:12px; display:flex; flex-wrap:wrap; gap:8px;">
+      </div>
+    </div>
+
+    <!-- 4a. H -->
+    <div class="flow-node n-mem" id="n3" style="left:295px;top:175px;width:130px;"
+         data-ox="425" data-oy="209">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[0000] / [0001]</span>
+        <span class="val">'H' + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">48h 'H'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4b. E -->
+    <div class="flow-node n-mem" id="n4" style="left:450px;top:175px;width:130px;"
+         data-ox="580" data-oy="209">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[0002] / [0003]</span>
+        <span class="val">'E' + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">45h 'E'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4c. L L -->
+    <div class="flow-node n-mem" id="n5" style="left:605px;top:175px;width:130px;"
+         data-ox="735" data-oy="209">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[0004–0007]</span>
+        <span class="val">'L','L' + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">4Ch 'L'</div>
+          <div class="mem-cell attr">07h ▓</div>
+          <div class="mem-cell char">4Ch 'L'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4d. O -->
+    <div class="flow-node n-mem" id="n6" style="left:760px;top:175px;width:130px;"
+         data-ox="890" data-oy="209">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[0008] / [0009]</span>
+        <span class="val">'O' + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">4Fh 'O'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4e. SPACE -->
+    <div class="flow-node n-mem" id="n7" style="left:295px;top:335px;width:130px;"
+         data-ox="425" data-oy="371">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[000A] / [000B]</span>
+        <span class="val">SPC + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">20h ' '</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4f. W -->
+    <div class="flow-node n-mem" id="n8" style="left:450px;top:335px;width:130px;"
+         data-ox="580" data-oy="371">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[000C] / [000D]</span>
+        <span class="val">'W' + 07h</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">57h 'W'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- 4g. O R L D -->
+    <div class="flow-node n-mem" id="n9" style="left:605px;top:335px;width:130px;"
+         data-ox="735" data-oy="371">
+      <div class="node-header">📝 Mem Write</div>
+      <div class="node-body">
+        <span class="addr">[000E–0015]</span>
+        <span class="val">'O','R','L','D'</span>
+        <div class="mem-grid" style="margin-top:4px">
+          <div class="mem-cell char">4Fh 'O'</div>
+          <div class="mem-cell attr">07h ▓</div>
+          <div class="mem-cell char">52h 'R'</div>
+          <div class="mem-cell attr">07h ▓</div>
+          <div class="mem-cell char">4Ch 'L'</div>
+          <div class="mem-cell attr">07h ▓</div>
+          <div class="mem-cell char">44h 'D'</div>
+          <div class="mem-cell attr">07h ▓</div>
+        </div>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+    </div>
+
+    <!-- Screen Preview inside group -->
+    <div style="position:absolute;left:760px;top:335px;width:130px;" class="flow-node" 
+         style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;">
+      <div class="node-header" style="background:#1a2a1a;color:#4dff91;font-family:'Orbitron',sans-serif;font-size:9px;letter-spacing:1.5px;padding:5px 10px 3px;border-radius:5px 5px 0 0;">
+        📺 SCREEN OUT
+      </div>
+      <div style="background:#000;padding:8px;font-family:'Share Tech Mono',monospace;font-size:13px;color:#aaaaaa;border:1px solid #333;margin:8px;border-radius:2px;letter-spacing:1px;">
+        HELLO WORLD
+      </div>
+      <div style="font-size:9px;color:var(--muted);padding:0 10px 8px;">VGA row 0, col 0<br>color: 07h</div>
+    </div>
+
+    <!-- 5. MOV AH, 0 -->
+    <div class="flow-node n-int" id="n10" style="left:280px;top:510px;width:190px;"
+         data-ox="470" data-oy="548">
+      <div class="node-header">⚡ Interrupt Prep</div>
+      <div class="node-body">
+        <span class="addr">AH Register</span>
+        <code style="color:#ffa04d">MOV AH, 00h</code><br>
+        <span style="font-size:9px;color:var(--muted)">BIOS kbd function 00h<br>Wait for key press</span>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">AH=00h selects BIOS keyboard service:<br>"Read character" — halts CPU until<br>a key is pressed.</div>
+    </div>
+
+    <!-- 6. INT 16h -->
+    <div class="flow-node n-int" id="n11" style="left:530px;top:510px;width:190px;"
+         data-ox="720" data-oy="548">
+      <div class="node-header">⚡ BIOS Interrupt</div>
+      <div class="node-body">
+        <span class="addr">INT 16h</span>
+        <code style="color:#bf7fff">INT 16h</code><br>
+        <span style="font-size:9px;color:var(--muted)">Keyboard Services<br>Waits for keypress</span>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="port-out" style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">BIOS Interrupt 16h, function 00h<br>Halts execution until user presses a key.<br>Returns scan code in AH, ASCII in AL.</div>
+    </div>
+
+    <!-- 7. RET -->
+    <div class="flow-node n-end" id="n12" style="left:780px;top:510px;width:160px;">
+      <div class="node-header">■ RETURN</div>
+      <div class="node-body">
+        <span class="addr">Instruction</span>
+        <code style="color:#ffa04d">RET</code><br>
+        <span style="font-size:9px;color:var(--muted)">Return to DOS<br>Program terminates</span>
+      </div>
+      <div class="port-in"  style="top:50%;transform:translateY(-50%)"></div>
+      <div class="tooltip">RET pops the return address from the stack<br>and transfers control back to DOS,<br>cleanly terminating the .COM program.</div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="legend" style="position:absolute;top:16px;right:16px;">
+      <h4>WIRE LEGEND</h4>
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--accent)"></div>
+        <span>Control Flow</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--accent2)"></div>
+        <span>Data / Mem Write</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:#bf7fff"></div>
+        <span>Interrupt</span>
+      </div>
+    </div>
+
+    <!-- WIRES drawn by JS -->
+  </div>
+</div>
+
+<div class="info-bar">
+  <div>Nodes: <span>13</span></div>
+  <div>Wires: <span>12</span></div>
+  <div>Segment: <span>B800h</span></div>
+  <div>Characters: <span>11 (HELLO WORLD)</span></div>
+  <div>Bytes written: <span>22</span></div>
+  <div style="margin-left:auto">Hover nodes for details</div>
+</div>
+
+<script>
+// Build memory grid in sidebar
+const chars = [
+  ['H','47'],['07h','attr'],['E','45'],['07h','attr'],
+  ['L','4C'],['07h','attr'],['L','4C'],['07h','attr'],
+  ['O','4F'],['07h','attr'],[' ','20'],['07h','attr'],
+  ['W','57'],['07h','attr'],['O','4F'],['07h','attr'],
+  ['R','52'],['07h','attr'],['L','4C'],['07h','attr'],
+  ['D','44'],['07h','attr']
+];
+const grid = document.getElementById('memGrid');
+chars.forEach(([c, h], i) => {
+  const d = document.createElement('div');
+  d.className = 'mem-cell ' + (h === 'attr' ? 'attr' : 'char');
+  d.textContent = h === 'attr' ? '07h' : `'${c}'`;
+  d.title = `Offset ${i}: ${h === 'attr' ? 'Color attribute 07h' : `ASCII '${c}' = ${parseInt(h,16)}`}`;
+  grid.appendChild(d);
+});
+
+// Draw wires using SVG bezier curves
+const svg = document.getElementById('wireSvg');
+
+function nodeCenter(id, side = 'out') {
+  const el = document.getElementById(id);
+  const rect = el.getBoundingClientRect();
+  const canvas = document.getElementById('canvas');
+  const cr = canvas.getBoundingClientRect();
+  const x = side === 'out'
+    ? rect.right - cr.left + canvas.scrollLeft
+    : rect.left - cr.left + canvas.scrollLeft;
+  const y = rect.top + rect.height/2 - cr.top + canvas.scrollTop;
+  return { x, y };
+}
+
+const wires = [
+  // control flow (orange)
+  { from: 'n0', to: 'n1', type: 'ctrl' },
+  { from: 'n1', to: 'n2', type: 'ctrl' },
+  // DS → group entry (into n3)
+  { from: 'n2', to: 'n3', type: 'data' },
+  // HELLO sequence
+  { from: 'n3', to: 'n4', type: 'data' },
+  { from: 'n4', to: 'n5', type: 'data' },
+  { from: 'n5', to: 'n6', type: 'data' },
+  // wrap row
+  { from: 'n3', to: 'n7', type: 'data', bent: true },
+  { from: 'n7', to: 'n8', type: 'data' },
+  { from: 'n8', to: 'n9', type: 'data' },
+  // after mem writes → interrupt prep
+  { from: 'n9', to: 'n10', type: 'ctrl', bent: true },
+  // interrupt chain
+  { from: 'n10', to: 'n11', type: 'int' },
+  { from: 'n11', to: 'n12', type: 'int' },
+];
+
+function drawWire(x1, y1, x2, y2, type, bent = false) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  let d;
+  const cx = (x1 + x2) / 2;
+  if (bent) {
+    // S-curve for wrapping
+    d = `M${x1},${y1} C${x1+60},${y1} ${x2-60},${y2} ${x2},${y2}`;
+  } else {
+    d = `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;
+  }
+  path.setAttribute('d', d);
+  let cls = 'wire wire-anim';
+  let marker = 'url(#arrow)';
+  if (type === 'data') { cls += ' wire-data'; marker = 'url(#arrow-data)'; }
+  if (type === 'int')  { cls += ' wire-int';  marker = 'url(#arrow-int)';  }
+  path.setAttribute('class', cls);
+  path.setAttribute('marker-end', marker);
+  svg.appendChild(path);
+}
+
+// Wait for layout
+setTimeout(() => {
+  wires.forEach(w => {
+    const from = nodeCenter(w.from, 'out');
+    const to   = nodeCenter(w.to,   'in');
+    drawWire(from.x, from.y, to.x, to.y, w.type, w.bent || false);
+  });
+}, 100);
+
+// Animation toggle
+let animated = true;
+function toggleAnim() {
+  animated = !animated;
+  document.querySelectorAll('.wire-anim').forEach(el => {
+    el.style.animationPlayState = animated ? 'running' : 'paused';
+  });
+  document.getElementById('animBtn').textContent = animated ? '⏸ Pause Flow' : '▶ Run Flow';
+}
+
+function resetZoom() {
+  document.getElementById('canvas').scrollTo(0,0);
+}
+</script>
+</body>
+</html>
